@@ -26,7 +26,7 @@ Author: Sean Cassero
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <obj_recognition/SegmentedClustersArray.h>
-#include <obj_recognition/ClusterData.h>
+// #include <obj_recognition/ClusterData.h>
 
 
 class segmentation {
@@ -36,9 +36,9 @@ public:
   explicit segmentation(ros::NodeHandle nh) : m_nh(nh)  {
 
     // define the subscriber and publisher
-    m_sub = m_nh.subscribe ("/obj_recognition/point_cloud", 1, &segmentation::cloud_cb, this);
-    m_clusterPub = m_nh.advertise<obj_recognition::SegmentedClustersArray> ("obj_recognition/pcl_clusters",1);
-
+    m_sub = m_nh.subscribe ("/camera/depth/color/points", 1, &segmentation::cloud_cb, this);
+    // m_clusterPub = m_nh.advertise<obj_recognition::SegmentedClustersArray> ("obj_recognition/pcl_clusters",1);
+    m_clusterPub = nh.advertise<sensor_msgs::PointCloud2> ("output", 1);
   }
 
 private:
@@ -155,9 +155,14 @@ void segmentation::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
   // declare the output variable instances
   sensor_msgs::PointCloud2 output;
+  output.header.frame_id = "camera_depth_optical_frame";
+
   pcl::PCLPointCloud2 outputPCL;
 
   // here, cluster_indices is a vector of indices for each cluster. iterate through each indices object to work with them seporately
+  // create a pcl object to hold the extracted cluster
+  pcl::PointCloud<pcl::PointXYZRGB> *cluster = new pcl::PointCloud<pcl::PointXYZRGB>;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr clusterPtr (cluster);
   for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
   {
 
@@ -165,9 +170,7 @@ void segmentation::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     //obj_recognition::ClusterData clusterData;
 
 
-    // create a pcl object to hold the extracted cluster
-    pcl::PointCloud<pcl::PointXYZRGB> *cluster = new pcl::PointCloud<pcl::PointXYZRGB>;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr clusterPtr (cluster);
+    
 
     // now we are in a vector of indices pertaining to a single cluster.
     // Assign each point corresponding to this cluster in xyzCloudPtrPassthroughFiltered a specific color for identification purposes
@@ -175,8 +178,8 @@ void segmentation::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     {
       clusterPtr->points.push_back(xyzCloudPtrRansacFiltered->points[*pit]);
 
-        }
-
+    }
+  }
 
     // log the position of the cluster
     //clusterData.position[0] = (*cloudPtr).data[0];
@@ -186,19 +189,19 @@ void segmentation::cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     //printf(clusterData.position[0]);
 
     // convert to pcl::PCLPointCloud2
-    pcl::toPCLPointCloud2( *clusterPtr ,outputPCL);
+  pcl::toPCLPointCloud2( *clusterPtr ,outputPCL);
 
     // Convert to ROS data type
-    pcl_conversions::fromPCL(outputPCL, output);
+  pcl_conversions::fromPCL(outputPCL, output);
 
     // add the cluster to the array message
-    //clusterData.cluster = output;
-    CloudClusters.clusters.push_back(output);
+  m_clusterPub.publish(output);
+    // CloudClusters.clusters.push_back(output);
 
-  }
+  
 
   // publish the clusters
-  m_clusterPub.publish(CloudClusters);
+  // m_clusterPub.publish(CloudClusters);
 
 }
 
